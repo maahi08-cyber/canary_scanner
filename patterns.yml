@@ -1,0 +1,198 @@
+# Canary Scanner - Enterprise Secret Detection Patterns v4.0
+# ==========================================================
+# Comprehensive patterns with metadata for validation and context.
+
+# --- Schema ---
+# - rule_id: Unique identifier (e.g., VENDOR-TYPE-NNN)
+#   description: Human-readable description
+#   regex: PCRE-compatible regular expression
+#   confidence: High | Medium | Low (Initial assessment)
+#   tags: [ 'cloud', 'database', 'token', 'key', 'pii', etc. ]
+#   validator_type: Optional identifier for the validation service (e.g., 'aws', 'github', 'stripe')
+#   entropy_threshold: Optional minimum Shannon entropy for Low confidence patterns
+#   allow_in_context: Optional list of contexts where this pattern might be acceptable (e.g., ['test', 'docs'])
+
+# =================================================================
+# CLOUD PROVIDERS - HIGH CONFIDENCE
+# =================================================================
+- rule_id: AWS-KEY-001
+  description: "AWS Access Key ID"
+  regex: '(?<![A-Z0-9])[A][K][I][A][0-9A-Z]{16}(?![A-Z0-9])' # Added boundaries
+  confidence: High
+  tags: [ 'cloud', 'aws', 'key', 'credential' ]
+  validator_type: aws
+
+- rule_id: AWS-KEY-002
+  description: "AWS Secret Access Key (40 chars)"
+  regex: '(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])' # Added boundaries, common false positive
+  confidence: Medium # Lowered due to FP potential, relies on context/validation
+  tags: [ 'cloud', 'aws', 'secret', 'credential' ]
+  validator_type: aws
+
+- rule_id: AWS-TOKEN-001
+  description: "AWS Session Token"
+  regex: '(?<![A-Za-z0-9/+=])(FwoGZXIvYXdzE[A-Za-z0-9/+=]{200,})(?![A-Za-z0-9/+=])' # Longer match group
+  confidence: High
+  tags: [ 'cloud', 'aws', 'token', 'credential' ]
+  validator_type: aws
+
+- rule_id: GOOGLE-KEY-001
+  description: "Google Cloud API Key"
+  regex: 'AIza[0-9A-Za-z\\-_]{35}'
+  confidence: High
+  tags: [ 'cloud', 'gcp', 'key', 'credential' ]
+  validator_type: gcp # Example validator type
+
+- rule_id: GOOGLE-TOKEN-001
+  description: "Google OAuth Access Token"
+  regex: 'ya29\\.[0-9A-Za-z\\-_]+'
+  confidence: High
+  tags: [ 'cloud', 'gcp', 'token', 'credential' ]
+
+- rule_id: AZURE-KEY-001
+  description: "Azure Storage Account Key"
+  regex: '[A-Za-z0-9+/]{86}==')'
+  confidence: High
+  tags: [ 'cloud', 'azure', 'key', 'credential' ]
+  validator_type: azure # Example validator type
+
+# =================================================================
+# VERSION CONTROL - HIGH CONFIDENCE
+# =================================================================
+- rule_id: GITHUB-TOKEN-001
+  description: "GitHub Personal Access Token (PAT)"
+  regex: 'ghp_[a-zA-Z0-9]{36}'
+  confidence: High
+  tags: [ 'vcs', 'github', 'token', 'credential' ]
+  validator_type: github
+
+- rule_id: GITHUB-TOKEN-002
+  description: "GitHub OAuth Access Token"
+  regex: 'gho_[a-zA-Z0-9]{36}'
+  confidence: High
+  tags: [ 'vcs', 'github', 'token', 'credential' ]
+  validator_type: github
+
+- rule_id: GITHUB-TOKEN-003
+  description: "GitHub App Installation Token"
+  regex: 'ghs_[a-zA-Z0-9]{36}'
+  confidence: High
+  tags: [ 'vcs', 'github', 'token', 'credential' ]
+  validator_type: github
+
+- rule_id: GITHUB-TOKEN-004
+  description: "GitHub Refresh Token"
+  regex: 'ghr_[a-zA-Z0-9]{76}'
+  confidence: High
+  tags: [ 'vcs', 'github', 'token', 'credential' ]
+
+- rule_id: GITLAB-TOKEN-001
+  description: "GitLab Personal/Project/Group Access Token"
+  regex: 'gl[poas]t-[a-zA-Z0-9\\-_]{20}'
+  confidence: High
+  tags: [ 'vcs', 'gitlab', 'token', 'credential' ]
+  validator_type: gitlab # Example validator type
+
+# =================================================================
+# PAYMENT PROVIDERS - HIGH CONFIDENCE
+# =================================================================
+- rule_id: STRIPE-KEY-001
+  description: "Stripe Live API Key"
+  regex: 'sk_live_[0-9a-zA-Z]{24}'
+  confidence: High
+  tags: [ 'payment', 'stripe', 'key', 'credential' ]
+  validator_type: stripe
+
+- rule_id: STRIPE-KEY-002
+  description: "Stripe Test API Key"
+  regex: 'sk_test_[0-9a-zA-Z]{24}'
+  confidence: Medium # Test keys are less critical
+  tags: [ 'payment', 'stripe', 'key', 'test' ]
+  validator_type: stripe
+  allow_in_context: ['test', 'example']
+
+- rule_id: STRIPE-KEY-003
+  description: "Stripe Restricted API Key (Live)"
+  regex: 'rk_live_[0-9a-zA-Z]{24}'
+  confidence: High
+  tags: [ 'payment', 'stripe', 'key', 'credential' ]
+  validator_type: stripe
+
+# =================================================================
+# COMMUNICATION PLATFORMS - HIGH CONFIDENCE
+# =================================================================
+- rule_id: SLACK-TOKEN-001
+  description: "Slack Bot Token (xoxb)"
+  regex: 'xoxb-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24}'
+  confidence: High
+  tags: [ 'communication', 'slack', 'token', 'credential' ]
+  validator_type: slack
+
+- rule_id: SLACK-TOKEN-002
+  description: "Slack User Token (xoxp)"
+  regex: 'xoxp-[0-9]{10,13}-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{32}'
+  confidence: High
+  tags: [ 'communication', 'slack', 'token', 'credential' ]
+  validator_type: slack
+
+# =================================================================
+# CRYPTOGRAPHIC KEYS - HIGH CONFIDENCE
+# =================================================================
+- rule_id: CRYPTO-KEY-001
+  description: "SSH Private Key"
+  # More specific regex to avoid matching public keys
+  regex: '-----BEGIN (RSA|OPENSSH|DSA|EC|PGP) PRIVATE KEY-----(?:.*\\n)+?-----END (RSA|OPENSSH|DSA|EC|PGP) PRIVATE KEY-----'
+  confidence: High
+  tags: [ 'crypto', 'ssh', 'pgp', 'key', 'credential' ]
+
+# =================================================================
+# GENERIC PATTERNS - LOW CONFIDENCE (Require Entropy + Context)
+# =================================================================
+- rule_id: GENERIC-KEY-001
+  description: "Generic API Key (Keyword Match)"
+  # Looks for keywords near high-entropy strings, requires quotes/assignment
+  regex: '(?i)(?:api_key|apikey|api-key|client_secret|secret_key|secret-key|access_token|auth_token)\s*[:=]\s*["'']?([a-zA-Z0-9_\\-]{20,})["'']?'
+  confidence: Low
+  tags: [ 'generic', 'key', 'secret', 'token', 'credential' ]
+  entropy_threshold: 3.5
+
+- rule_id: GENERIC-SECRET-001
+  description: "Generic Secret (Keyword Match)"
+  regex: '(?i)(?:secret|token|password|passwd|pwd|credentials)\s*[:=]\s*["'']?([a-zA-Z0-9_\\-]{16,})["'']?'
+  confidence: Low
+  tags: [ 'generic', 'secret', 'token', 'password', 'credential' ]
+  entropy_threshold: 3.0
+
+- rule_id: GENERIC-HEADER-001
+  description: "Authorization Header (Bearer/Basic)"
+  # Captures the token part
+  regex: '(?i)Authorization["'']?\s*[:=]\s*["'']?(?:Bearer|Basic)\s+([a-zA-Z0-9_\\-\.\+/=]+)["'']?'
+  confidence: Low
+  tags: [ 'generic', 'auth', 'header', 'token' ]
+  entropy_threshold: 4.0
+
+# =================================================================
+# HIGH ENTROPY STRINGS - LOW CONFIDENCE (Require Strict Entropy + Context)
+# =================================================================
+- rule_id: ENTROPY-BASE64-001
+  description: "High Entropy String (Likely Base64, >=40 chars)"
+  regex: '(?<![A-Za-z0-9+/])([A-Za-z0-9+/]{40,})(?:={0,2})(?![A-Za-z0-9+/])' # Boundaries, capture group
+  confidence: Low
+  tags: [ 'entropy', 'generic' ]
+  entropy_threshold: 4.5 # Strict threshold for generic entropy match
+
+- rule_id: ENTROPY-HEX-001
+  description: "High Entropy String (Likely Hex, >=40 chars)"
+  regex: '(?<![a-fA-F0-9])([a-fA-F0-9]{40,})(?![a-fA-F0-9])' # Boundaries, capture group
+  confidence: Low
+  tags: [ 'entropy', 'generic' ]
+  entropy_threshold: 3.8 # Hex has lower entropy, adjust threshold
+
+- rule_id: ENTROPY-ALPHA-NUM-001
+  description: "High Entropy String (Alpha-Numeric + Symbols, >=32 chars)"
+  regex: '(?<![a-zA-Z0-9_\\-])([a-zA-Z0-9_\\-]{32,})(?![a-zA-Z0-9_\\-])' # Boundaries, capture group
+  confidence: Low
+  tags: [ 'entropy', 'generic' ]
+  entropy_threshold: 4.2
+
+# Add many more patterns for specific services (Twilio, SendGrid, etc.) following this structure
