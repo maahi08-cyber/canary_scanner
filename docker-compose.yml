@@ -1,0 +1,91 @@
+# docker-compose.yml 
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: canary_db_phase4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password} # Use from .env
+      POSTGRES_DB: ${POSTGRES_DB:-canary_dashboard}
+    volumes:
+      - postgres_data_p4:/var/lib/postgresql/data/
+      # Optional: Add init script if needed: - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432" # Use from .env or default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - canary_net
+
+  # Optional Redis for validation queue (not strictly needed for MVP sync validation)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: canary_redis_p4
+  #   ports: ["${REDIS_PORT:-6379}:6379"]
+  #   volumes: [redis_data_p4:/data]
+  #   healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 10s, timeout: 5s, retries: 5 }
+  #   networks: [canary_net]
+
+  validation_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: validation_runtime # Target the validation stage
+    container_name: canary_validator_p4
+    command: uvicorn app:app --host 0.0.0.0 --port 8001 --reload --log-level debug # Enable reload
+    volumes:
+      - ./validation_service:/app # Mount code for hot-reloading
+      - ./config:/app/config     # Mount config
+    ports:
+      - "${VALIDATION_PORT:-8001}:8001"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      # Pass API key and AWS creds via env_file for local dev
+    env_file:
+      - .env # Load secrets and config from .env file
+    depends_on: {} # No hard dependency for MVP sync
+    networks:
+      - canary_net
+    # healthcheck: defined in Dockerfile stage
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dashboard_runtime # Target the dashboard stage
+    container_name: canary_dashboard_p4
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload --log-level debug # Enable reload
+    volumes:
+      - ./dashboard:/app          # Mount dashboard code
+      - ./scanner:/app/scanner    # Mount scanner code (for realtime)
+      - ./patterns.yml:/app/patterns.yml # Mount patterns
+      - ./config:/app/config      # Mount config
+    ports:
+      - "${DASHBOARD_PORT:-8000}:8000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-canary_dashboard}
+      - VALIDATION_SERVICE_URL=http://validation_service:8001 # Internal service name
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      # Pass GitHub App, Slack secrets via env_file
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      # validation_service: # Add if dashboard directly calls validator (less likely)
+      #   condition: service_healthy # Use Docker healthcheck if available
+    networks:
+      - canary_net
+
+volumes:
+  postgres_data_p4:
+  # redis_data_p4:
+
+networks:
+  canary_net:
+    driver: bridge
