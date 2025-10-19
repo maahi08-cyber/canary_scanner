@@ -1,0 +1,64 @@
+# .dockerignore ( Optimized for Multi-Stage)
+# =================================================================
+# Exclude files from the Docker build context entirely
+
+# --- Core Exclusions ---
+.git/
+.gitignore
+.dockerignore
+Dockerfile # Dockerfile itself is not needed inside
+docker-compose.yml
+README.md
+SETUP.md
+ARCHITECTURE.md
+LICENSE
+*.md # Exclude all markdown at root
+
+# --- Secrets & Local Config ---
+.env
+*.env.*
+!.env.example
+*.pem # Exclude private keys by default
+*.key
+
+# --- Build Artifacts & Logs ---
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+logs/
+*.log
+scan-results/
+
+# --- Development & Testing ---
+venv/
+env/
+.venv/
+.pytest_cache/
+.coverage*
+htmlcov/
+tests/ # Exclude tests from production images
+examples/
+
+# --- OS & IDE ---
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+Thumbs.db
+
+# --- Specific Directories NOT needed in ALL stages ---
+# These might be copied selectively in the Dockerfile if needed
+# dashboard/ # Copied explicitly to dashboard stage
+# validation_service/ # Copied explicitly to validation stage
+# scanner/ # Copied explicitly to scanner/dashboard stages
+# config/ # Copied explicitly where needed
+
+# --- Large Files/Dirs ---
+node_modules/ # If present for any reason
+*.tar.gz
+*.zip
