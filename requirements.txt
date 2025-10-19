@@ -1,0 +1,12 @@
+# requirements.txt (Root Level - Scanner CLI)
+# =================================================================
+PyYAML>=6.0.1,<7.0.0          # For loading patterns.yml
+rich>=13.7.0,<14.0.0          # For beautiful console output
+httpx>=0.25.0,<0.26.0         # Async HTTP client for calling APIs (Validation/Dashboard)
+
+# Core Python Utilities 
+typing-extensions>=4.8.0,<5.0.0
+packaging>=23.0,<24.0
+
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0 
