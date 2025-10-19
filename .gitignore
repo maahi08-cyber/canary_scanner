@@ -1,0 +1,62 @@
+This looks comprehensive, ensure it includes `.env` and potentially logs or local data volumes if not managed solely by Docker.
+
+```gitignore
+# .gitignore ( additions/verification)
+# =================================================================
+# Ensure these critical lines exist:
+.env
+*.env.*
+!.env.example # Allow example file
+
+# Add log directories if created outside containers
+logs/
+*.log
+
+# Add database/redis data if mapped outside Docker volumes locally
+# postgres_data_p4/
+# redis_data_p4/
+
+# Add Terraform/IaC state files if used
+# .terraform/
+# *.tfstate
+# *.tfstate.backup
+
+# =================================================================
+# (Keep all existing sections: PYTHON, VENV, IDE, TESTING, etc.)
+# =================================================================
+
+# Python (Existing)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+# ... etc ...
+
+# Virtual Env (Existing)
+venv/
+env/
+.venv/
+# ... etc ...
+
+# IDE (Existing)
+.vscode/
+.idea/
+# ... etc ...
+
+# Secrets (Existing)
+*.key
+*.pem # Be careful if GitHub App key is stored locally
+*.p12
+*.pfx
+credentials.json
+service-account.json
+# ... etc ...
+
+# Canary Specific (Existing)
+scan-results/
+findings.json
+
+# ... (Keep OS, TEMP, NODE, DOCKER sections) ...
