@@ -1,70 +1,71 @@
+"""
+Base validator class for secret validation.
+"""
+import asyncio
 from abc import ABC, abstractmethod
+from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional
+from typing import Dict, Optional, List
+from pydantic import BaseModel
 
-# --- Standardized Models ---
-
-class ValidationStatus(str, Enum):
-    """Standardized validation statuses."""
+class ValidationStatus(Enum):
+    """Status of secret validation."""
     ACTIVE = "active"
     INACTIVE = "inactive"
-    UNKNOWN = "unknown"
+    EXPIRED = "expired"
+    INVALID_FORMAT = "invalid_format"
+    RATE_LIMITED = "rate_limited"
     ERROR = "error"
+    UNSUPPORTED = "unsupported"
 
 class ValidationResult(BaseModel):
-    """
-    A standardized Pydantic model for all validation results.
-    This ensures consistent output from every validator.
-    """
+    """Result of secret validation."""
     status: ValidationStatus
-    details: str
-    is_active: Optional[bool] = None
-    
-    # Optional metadata that validators can add
-    extra_info: Dict[str, Any] = Field(default_factory=dict)
+    confidence: float = 1.0  # 0.0 - 1.0
+    details: Dict = {}
+    error_message: Optional[str] = None
+    validated_at: datetime = datetime.utcnow()
+    service_response_time: Optional[float] = None  # seconds
 
-    def model_post_init(self, __context: Any) -> None:
-        """Calculate is_active after initialization."""
-        if self.status == ValidationStatus.ACTIVE:
-            self.is_active = True
-        elif self.status == ValidationStatus.INACTIVE:
-            self.is_active = False
-        else:
-            self.is_active = None
-
-# --- Abstract Base Class ---
+    def to_dict(self) -> Dict:
+        return {
+            "status": self.status.value,
+            "confidence": self.confidence,
+            "details": self.details,
+            "error_message": self.error_message,
+            "validated_at": self.validated_at.isoformat(),
+            "service_response_time": self.service_response_time
+        }
 
 class BaseValidator(ABC):
-    """
-    An abstract base class that defines the contract for all validators.
-    Every new validator (e.g., for Azure, Slack, etc.) MUST inherit from
-    this class and implement the `validate` method.
-    """
-    
-    # These must be overridden by subclasses
-    secret_type: str = "base"
-    description: str = "Base Validator"
-    
+    """Base class for all secret validators."""
+
+    def __init__(self):
+        self.description = "Base validator"
+        self.supported_operations = ["validate"]
+        self.rate_limit_delay = 1.0  # seconds between requests
+
     @abstractmethod
-    async def validate(self, secret_value: str, context: Dict[str, Any]) -> ValidationResult:
+    async def validate(self, secret_value: str, additional_data: Dict, context: Dict) -> ValidationResult:
         """
-        The core validation logic for a specific secret type.
+        Validate a secret by making API calls to the service.
 
         Args:
-            secret_value: The secret string to be validated.
-            context: A dictionary of context from the scanner (e.g., file_path).
+            secret_value: The secret to validate
+            additional_data: Additional data needed for validation (e.g., secret key for AWS)
+            context: Context about where the secret was found
 
         Returns:
-            A ValidationResult object.
+            ValidationResult with status and details
         """
-        raise NotImplementedError
+        pass
 
-    def sanitize_secret_for_logging(self, secret: str, visible_chars: int = 4) -> str:
-        """
-        Sanitizes a secret for logging to prevent accidental exposure.
-        Example: "sk_live_1234567890abcdef" -> "sk_live_...bcde"
-        """
-        if len(secret) <= visible_chars:
-            return "****"
-        return f"{secret[:(len(secret) - visible_chars) // 2]}...{secret[-visible_chars:]}"
+    def _sanitize_for_logging(self, secret: str) -> str:
+        """Sanitize secret for safe logging."""
+        if len(secret) <= 8:
+            return "*" * len(secret)
+        return secret[:4] + "*" * (len(secret) - 8) + secret[-4:]
+
+    async def _rate_limit(self):
+        """Apply rate limiting between requests."""
+        await asyncio.sleep(self.rate_limit_delay)
