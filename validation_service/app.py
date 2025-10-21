@@ -1,27 +1,49 @@
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional, Dict
 from datetime import datetime
-import redis
-import json
 import uuid
+import json
+import logging
 
 from .config import settings
 from .validators import VALIDATORS
+from .security import verify_api_key
+from arq import create_pool
 
-app = FastAPI(title="Secret Validation Service", version="1.0.0")
+# Configure logging
+logging.basicConfig(level=settings.LOG_LEVEL.upper())
+logger = logging.getLogger(__name__)
 
-redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version="2.0.0",
+    description="An asynchronous microservice to validate secrets found by Canary Scanner."
+)
 
+@app.on_event("startup")
+async def startup():
+    """On startup, create a Redis pool for arq."""
+    app.state.redis = await create_pool(settings.get_arq_redis_settings())
+    logger.info("FastAPI app started and Redis pool created.")
+
+@app.on_event("shutdown")
+async def shutdown():
+    """On shutdown, close the Redis pool."""
+    await app.state.redis.close()
+    logger.info("FastAPI app shut down and Redis pool closed.")
+
+
+# --- API Models ---
 class ValidationRequest(BaseModel):
     secret_type: str
     secret_value: str
-    metadata: Optional[Dict] = {}
+    context: Optional[Dict] = {}
 
 class ValidationResponse(BaseModel):
     job_id: str
     status: str
-    message: Optional[str] = None
+    message: Optional[str] = "Validation job submitted successfully."
 
 class StatusResponse(BaseModel):
     job_id: str
@@ -29,59 +51,82 @@ class StatusResponse(BaseModel):
     result: Optional[Dict] = None
     created_at: Optional[str] = None
     completed_at: Optional[str] = None
-    message: Optional[str] = None
+    error_message: Optional[str] = None
 
-def verify_api_key(x_api_key: str = Header(...)):
-    if x_api_key != settings.API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return x_api_key
 
-@app.post("/api/v1/validate", response_model=ValidationResponse, status_code=202)
-async def submit_validation(request: ValidationRequest, api_key: str = Header(..., alias="X-API-Key")):
-    verify_api_key(api_key)
+# --- API Endpoints ---
+@app.post(
+    f"{settings.API_V1_STR}/validate",
+    response_model=ValidationResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(verify_api_key)]
+)
+async def submit_validation_job(request: ValidationRequest):
+    """
+    Receives a secret and submits it to the background worker queue for validation.
+    """
     if request.secret_type not in VALIDATORS:
-        raise HTTPException(status_code=400, detail=f"Unknown secret type: {request.secret_type}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validation for secret type '{request.secret_type}' is not supported."
+        )
 
     job_id = str(uuid.uuid4())
     job_data = {
         "job_id": job_id,
         "secret_type": request.secret_type,
         "secret_value": request.secret_value,
-        "metadata": request.metadata,
+        "context": request.context,
         "created_at": datetime.utcnow().isoformat(),
-        "status": "pending",
+        "status": "queued",
     }
-    redis_client.setex(f"job:{job_id}", settings.JOB_TTL, json.dumps(job_data))
-    redis_client.lpush("validation_queue", job_id)
 
-    return ValidationResponse(job_id=job_id, status="pending", message="Validation job submitted")
-
-@app.get("/api/v1/validate/status/{job_id}", response_model=StatusResponse)
-async def get_validation_status(job_id: str, api_key: str = Header(..., alias="X-API-Key")):
-    verify_api_key(api_key)
-    job_json = redis_client.get(f"job:{job_id}")
-    if not job_json:
-        raise HTTPException(status_code=404, detail="Job not found")
-    job_data = json.loads(job_json)
-    return StatusResponse(
-        job_id=job_id,
-        status=job_data.get("status"),
-        result=job_data.get("result"),
-        created_at=job_data.get("created_at"),
-        completed_at=job_data.get("completed_at"),
-        message=job_data.get("message"),
-    )
-
-@app.get("/api/v1/health")
-async def health_check():
     try:
-        redis_client.ping()
-        status = "healthy"
+        # Enqueue the job for the arq worker
+        await app.state.redis.enqueue_job(
+            'run_validation',  # This must match the task name in worker.py
+            job_data,
+            _queue_name=settings.VALIDATION_QUEUE_NAME
+        )
+        logger.info(f"Successfully enqueued validation job {job_id} for type '{request.secret_type}'.")
+        return ValidationResponse(job_id=job_id, status="queued")
     except Exception as e:
-        status = f"unhealthy: {str(e)}"
-    return {"status": status, "timestamp": datetime.utcnow().isoformat()}
+        logger.error(f"Failed to enqueue job {job_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to submit job to the validation queue."
+        )
 
-@app.get("/api/v1/validators")
-async def list_validators(api_key: str = Header(..., alias="X-API-Key")):
-    verify_api_key(api_key)
-    return {"validators": list(VALIDATORS.keys()), "count": len(VALIDATORS)}
+
+@app.get(
+    f"{settings.API_V1_STR}/validate/status/{{job_id}}",
+    response_model=StatusResponse,
+    dependencies=[Depends(verify_api_key)]
+)
+async def get_validation_status(job_id: str):
+    """Retrieves the status and result of a validation job from Redis."""
+    try:
+        job_json = await app.state.redis.get(f"job_result:{job_id}")
+        if not job_json:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Validation job with ID '{job_id}' not found."
+            )
+        job_data = json.loads(job_json)
+        return StatusResponse(**job_data)
+    except Exception as e:
+        logger.error(f"Failed to retrieve status for job {job_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving job status."
+        )
+
+@app.get(f"{settings.API_V1_STR}/health")
+async def health_check():
+    """Performs a health check of the service and its dependencies (Redis)."""
+    try:
+        await app.state.redis.ping()
+        return {"status": "healthy", "redis_connection": "ok"}
+    except Exception:
+        logger.error("Health check failed: Could not connect to Redis.")
+        raise HTTPException(status_code=503, detail="Service unhealthy: Cannot connect to Redis")
