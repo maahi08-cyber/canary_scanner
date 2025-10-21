@@ -1,13 +1,25 @@
-# scanner/__init__.py
-"""
-Canary Scanner - A powerful secret scanning tool for developers.
 
-This package provides the core functionality for scanning files and directories
-for hardcoded secrets, API keys, passwords, and other sensitive information.
+"""
+Canary Scanner - A professional, context-aware DevSecOps tool.
 """
 
-from .core import Scanner, Finding
+# Import from your new files
 from .patterns import Pattern, load_patterns
+from .context import ContextAnalyzer, ContextType
+from .filters import FalsePositiveFilter
+from .validators import ValidationClient
+from .core import EnhancedScanner, Finding
 
-__version__ = "1.0.0"
-__all__ = ["Scanner", "Finding", "Pattern", "load_patterns"]
+__version__ = "2.0.0"
+
+# Define what gets imported when someone does 'from scanner import *'
+__all__ = [
+    "EnhancedScanner",
+    "Finding",
+    "Pattern",
+    "load_patterns",
+    "ContextAnalyzer",
+    "ContextType",
+    "FalsePositiveFilter",
+    "ValidationClient"
+]
