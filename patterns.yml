@@ -17,6 +17,55 @@
 # =================================================================
 - rule_id: AWS-KEY-001
   description: "AWS Access Key ID"
+  regex: '(?<![A-Z0-9])[A][K][I][A][0-9A-Z]{16}(?![A-Z0-9])'
+  confidence: High
+  tags: [ 'cloud', 'aws', 'key', 'credential' ]
+  secret_type: "aws_access_key"
+  validation_enabled: true
+
+- rule_id: AWS-KEY-002
+  description: "AWS Secret Access Key (40 chars)"
+  regex: '(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])'
+  confidence: Medium
+  tags: [ 'cloud', 'aws', 'secret', 'credential' ]
+  secret_type: "aws_secret_key" # Can't be validated alone, but good for tracking
+  validation_enabled: true # Will result in 'unsupported' status
+
+- rule_id: GITHUB-TOKEN-001
+  description: "GitHub Personal Access Token (PAT)"
+  regex: 'ghp_[a-zA-Z0-9]{36}'
+  confidence: High
+  tags: [ 'vcs', 'github', 'token', 'credential' ]
+  secret_type: "github_token"
+  validation_enabled: true
+
+- rule_id: GITHUB-TOKEN-002
+  description: "GitHub OAuth Access Token"
+  regex: 'gho_[a-zA-Z0-9]{36}'
+  confidence: High
+  tags: [ 'vcs', 'github', 'token', 'credential' ]
+  secret_type: "github_token"
+  validation_enabled: true
+
+- rule_id: STRIPE-KEY-001
+  description: "Stripe Live API Key"
+  regex: 'sk_live_[0-9a-zA-Z]{24}'
+  confidence: High
+  tags: [ 'payment', 'stripe', 'key', 'credential' ]
+  secret_type: "stripe_api_key"
+  validation_enabled: true
+
+- rule_id: STRIPE-KEY-002
+  description: "Stripe Test API Key"
+  regex: 'sk_test_[0-9a-zA-Z]{24}'
+  confidence: Medium
+  tags: [ 'payment', 'stripe', 'key', 'test' ]
+  secret_type: "stripe_api_key"
+  validation_enabled: true
+  allow_in_context: ['test', 'example']
+
+- rule_id: AWS-KEY-001
+  description: "AWS Access Key ID"
   regex: '(?<![A-Z0-9])[A][K][I][A][0-9A-Z]{16}(?![A-Z0-9])' # Added boundaries
   confidence: High
   tags: [ 'cloud', 'aws', 'key', 'credential' ]
