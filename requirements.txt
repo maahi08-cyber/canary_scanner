@@ -1,12 +1,40 @@
-# requirements.txt (Root Level - Scanner CLI)
-# =================================================================
-PyYAML>=6.0.1,<7.0.0          # For loading patterns.yml
-rich>=13.7.0,<14.0.0          # For beautiful console output
-httpx>=0.25.0,<0.26.0         # Async HTTP client for calling APIs (Validation/Dashboard)
+# Canary Dashboard - Phase 3 Dependencies
+# =====================================
+# Production-ready web dashboard dependencies
 
-# Core Python Utilities 
-typing-extensions>=4.8.0,<5.0.0
-packaging>=23.0,<24.0
+# Core web framework
+fastapi>=0.104.0,<0.105.0
+uvicorn[standard]>=0.24.0,<0.25.0
 
-# pytest>=7.4.0
-# pytest-asyncio>=0.21.0 
+# Database and ORM
+sqlalchemy>=2.0.0,<2.1.0
+psycopg2-binary>=2.9.0,<2.10.0
+alembic>=1.12.0,<1.13.0
+
+# Templates and static files
+jinja2>=3.1.0,<3.2.0
+python-multipart>=0.0.6
+
+# HTTP client for Slack integration
+httpx>=0.25.0,<0.26.0
+
+# Configuration management
+pydantic>=2.4.0,<2.5.0
+pydantic-settings>=2.0.0,<2.1.0
+
+# Date and time handling
+python-dateutil>=2.8.0,<2.9.0
+
+# Environment variable loading
+python-dotenv>=1.0.0,<1.1.0
+
+# Development dependencies (optional)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-httpx>=0.24.0
+black>=23.9.0
+isort>=5.12.0
+mypy>=1.6.0
+
+# Production server (optional, uvicorn is sufficient for most cases)
+gunicorn>=21.2.0
