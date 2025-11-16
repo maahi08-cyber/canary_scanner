@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+
+{% block title %}Security Dashboard - Overview{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="h2 mb-4">
+            <i class="fas fa-tachometer-alt text-primary"></i>
+            Security Dashboard Overview
+        </h1>
+    </div>
+</div>
+
+<!-- Key Metrics Cards -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Total Scans
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ total_scans | default(0) }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-search fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-left-danger shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                            Critical Findings
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ critical_findings | default(0) }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Resolved Findings
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ resolved_findings | default(0) }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Resolution Rate
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ resolution_rate | default(0) }}%
+                        </div>
+                        <div class="progress progress-sm mr-2">
+                            <div class="progress-bar bg-info" role="progressbar" 
+                                 style="width: {{ resolution_rate | default(0) }}%"></div>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-clipboard-list fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4">
+    <!-- Findings Trend Chart -->
+    <div class="col-xl-8 col-lg-7">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-chart-line"></i>
+                    Findings Trend (Last 30 Days)
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-area">
+                    <canvas id="findingsTrendChart" width="100" height="40"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confidence Distribution -->
+    <div class="col-xl-4 col-lg-5">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-chart-pie"></i>
+                    Confidence Levels
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-pie pt-4 pb-2">
+                    <canvas id="confidenceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Repository Breakdown -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-code-branch"></i>
+                    Repository Security Status
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-bar">
+                    <canvas id="repositoryChart" width="100" height="50"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Scans Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-history"></i>
+                    Recent Scans
+                </h6>
+            </div>
+            <div class="card-body">
+                {% if recent_scans %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Repository</th>
+                                    <th>Branch</th>
+                                    <th>Commit</th>
+                                    <th>Timestamp</th>
+                                    <th>Findings</th>
+                                    <th>Critical</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for scan in recent_scans %}
+                                <tr>
+                                    <td>
+                                        <i class="fab fa-github text-muted me-1"></i>
+                                        {{ scan.repository_name }}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ scan.branch }}</span>
+                                    </td>
+                                    <td>
+                                        <code>{{ scan.short_commit_hash }}</code>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ scan.timestamp.strftime('%Y-%m-%d %H:%M') }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        {% if scan.findings_count > 0 %}
+                                            <span class="badge bg-warning">{{ scan.findings_count }}</span>
+                                        {% else %}
+                                            <span class="badge bg-success">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if scan.critical_findings_count > 0 %}
+                                            <span class="badge bg-danger">{{ scan.critical_findings_count }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="/scans/{{ scan.id }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> View Details
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No scans yet</h5>
+                        <p class="text-muted">Start scanning repositories to see results here.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Chart configuration with data from backend
+const chartData = {{ chart_data | safe }};
+
+// Findings Trend Chart
+const findingsTrendCtx = document.getElementById('findingsTrendChart').getContext('2d');
+new Chart(findingsTrendCtx, {
+    type: 'line',
+    data: {
+        labels: chartData.findings_trend.labels,
+        datasets: [{
+            label: 'Findings',
+            data: chartData.findings_trend.data,
+            backgroundColor: 'rgba(78, 115, 223, 0.05)',
+            borderColor: 'rgba(78, 115, 223, 1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.3
+        }]
+    },
+    options: {
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+
+// Confidence Distribution Chart
+const confidenceCtx = document.getElementById('confidenceChart').getContext('2d');
+new Chart(confidenceCtx, {
+    type: 'doughnut',
+    data: {
+        labels: chartData.confidence_distribution.labels,
+        datasets: [{
+            data: chartData.confidence_distribution.data,
+            backgroundColor: ['#e74c3c', '#f39c12', '#3498db'],
+            borderWidth: 2,
+            borderColor: '#fff'
+        }]
+    },
+    options: {
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+// Repository Breakdown Chart
+const repositoryCtx = document.getElementById('repositoryChart').getContext('2d');
+new Chart(repositoryCtx, {
+    type: 'bar',
+    data: {
+        labels: chartData.repository_breakdown.labels,
+        datasets: [{
+            label: 'Total Findings',
+            data: chartData.repository_breakdown.data,
+            backgroundColor: 'rgba(78, 115, 223, 0.8)',
+            borderColor: 'rgba(78, 115, 223, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

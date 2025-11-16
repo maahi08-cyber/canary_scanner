@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+
+{% block title %}Findings Management{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1 class="h2">
+                <i class="fas fa-exclamation-triangle text-warning"></i>
+                Findings Management
+            </h1>
+            <div>
+                <button class="btn btn-outline-success" onclick="bulkResolve()">
+                    <i class="fas fa-check-double"></i> Bulk Resolve
+                </button>
+                <button class="btn btn-outline-primary" onclick="exportFindings()">
+                    <i class="fas fa-download"></i> Export
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Controls -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-filter"></i>
+                    Filters
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="">All Statuses</option>
+                            {% for status in status_options %}
+                                <option value="{{ status }}" 
+                                        {% if current_filters.status == status %}selected{% endif %}>
+                                    {{ status }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Confidence</label>
+                        <select name="confidence" class="form-select">
+                            <option value="">All Levels</option>
+                            {% for confidence in confidence_options %}
+                                <option value="{{ confidence }}" 
+                                        {% if current_filters.confidence == confidence %}selected{% endif %}>
+                                    {{ confidence }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Repository</label>
+                        <select name="repository" class="form-select">
+                            <option value="">All Repositories</option>
+                            {% for repo in repositories %}
+                                <option value="{{ repo }}" 
+                                        {% if current_filters.repository == repo %}selected{% endif %}>
+                                    {{ repo }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="fas fa-search"></i> Filter
+                        </button>
+                        <a href="/findings" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Clear
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Findings List -->
+{% if findings %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-list"></i>
+                        Security Findings ({{ findings | length }})
+                    </h6>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="selectAll">
+                        <label class="form-check-label" for="selectAll">
+                            Select All
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="findingsTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th width="40">
+                                    <input type="checkbox" id="selectAllHeader">
+                                </th>
+                                <th>Priority</th>
+                                <th>Repository</th>
+                                <th>File</th>
+                                <th>Line</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                                <th>Age</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for finding in findings %}
+                            <tr data-finding-id="{{ finding.id }}" 
+                                class="{% if finding.confidence == 'High' %}table-danger{% elif finding.confidence == 'Medium' %}table-warning{% endif %}">
+                                <td>
+                                    <input type="checkbox" class="finding-checkbox" value="{{ finding.id }}">
+                                </td>
+                                <td>
+                                    {% if finding.confidence == 'High' %}
+                                        <span class="badge bg-danger">🔴 CRITICAL</span>
+                                    {% elif finding.confidence == 'Medium' %}
+                                        <span class="badge bg-warning text-dark">🟡 MEDIUM</span>
+                                    {% else %}
+                                        <span class="badge bg-info">🔵 LOW</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-column">
+                                        <strong>{{ finding.scan.repository_name }}</strong>
+                                        <small class="text-muted">
+                                            <span class="badge bg-secondary">{{ finding.scan.branch }}</span>
+                                            <code>{{ finding.scan.short_commit_hash }}</code>
+                                        </small>
+                                    </div>
+                                </td>
+                                <td>
+                                    <code class="small">{{ finding.short_file_path }}</code>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ finding.line_number }}</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-column">
+                                        <strong>{{ finding.description }}</strong>
+                                        <small class="text-muted">{{ finding.rule_id }}</small>
+                                        <small class="text-danger">{{ finding.secret_preview }}</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge {% if finding.status == 'New' %}bg-danger{% elif finding.status == 'Acknowledged' %}bg-warning{% elif finding.status == 'Resolved' %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {{ finding.status_icon }} {{ finding.status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        {{ finding.age_days }} day{{ 's' if finding.age_days != 1 else '' }}
+                                    </small>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="/scans/{{ finding.scan_id }}" class="btn btn-outline-primary" title="View scan">
+                                            <i class="fas fa-microscope"></i>
+                                        </a>
+                                        <button class="btn btn-outline-success" 
+                                                onclick="quickResolve({{ finding.id }})" 
+                                                title="Quick resolve"
+                                                {% if finding.status == 'Resolved' %}disabled{% endif %}>
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button class="btn btn-outline-info" 
+                                                onclick="addNotes({{ finding.id }})" 
+                                                title="Add notes">
+                                            <i class="fas fa-sticky-note"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-body text-center py-5">
+                {% if current_filters.status or current_filters.confidence or current_filters.repository %}
+                    <i class="fas fa-filter fa-4x text-muted mb-3"></i>
+                    <h3 class="text-muted">No findings match your filters</h3>
+                    <p class="text-muted">Try adjusting your search criteria or <a href="/findings">clear all filters</a>.</p>
+                {% else %}
+                    <i class="fas fa-shield-alt fa-4x text-success mb-3"></i>
+                    <h3 class="text-success">No security findings!</h3>
+                    <p class="text-muted">Great! No secrets have been detected in your repositories.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Notes Modal -->
+<div class="modal fade" id="notesModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Notes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="notesForm">
+                    <input type="hidden" id="notesFindingId">
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="notesText" rows="4" 
+                                  placeholder="Add notes about this finding..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveNotes()">Save Notes</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Select all functionality
+document.getElementById('selectAll').addEventListener('change', function() {
+    const checkboxes = document.querySelectorAll('.finding-checkbox');
+    checkboxes.forEach(cb => cb.checked = this.checked);
+    updateBulkActionButtons();
+});
+
+document.getElementById('selectAllHeader').addEventListener('change', function() {
+    document.getElementById('selectAll').checked = this.checked;
+    document.getElementById('selectAll').dispatchEvent(new Event('change'));
+});
+
+// Update bulk action button states
+function updateBulkActionButtons() {
+    const selectedCount = document.querySelectorAll('.finding-checkbox:checked').length;
+    const bulkButton = document.querySelector('button[onclick="bulkResolve()"]');
+
+    if (selectedCount > 0) {
+        bulkButton.disabled = false;
+        bulkButton.innerHTML = `<i class="fas fa-check-double"></i> Bulk Resolve (${selectedCount})`;
+    } else {
+        bulkButton.disabled = true;
+        bulkButton.innerHTML = '<i class="fas fa-check-double"></i> Bulk Resolve';
+    }
+}
+
+// Listen for individual checkbox changes
+document.querySelectorAll('.finding-checkbox').forEach(cb => {
+    cb.addEventListener('change', updateBulkActionButtons);
+});
+
+// Quick resolve function
+async function quickResolve(findingId) {
+    const confirmed = confirm('Are you sure you want to mark this finding as resolved?');
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch(`/api/v1/findings/${findingId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'Resolved' })
+        });
+
+        if (response.ok) {
+            location.reload(); // Refresh to show updated status
+        } else {
+            throw new Error('Failed to update status');
+        }
+    } catch (error) {
+        alert('Failed to resolve finding. Please try again.');
+    }
+}
+
+// Bulk resolve function
+async function bulkResolve() {
+    const selected = Array.from(document.querySelectorAll('.finding-checkbox:checked')).map(cb => cb.value);
+
+    if (selected.length === 0) {
+        alert('Please select findings to resolve.');
+        return;
+    }
+
+    const confirmed = confirm(`Are you sure you want to resolve ${selected.length} finding(s)?`);
+    if (!confirmed) return;
+
+    try {
+        const promises = selected.map(findingId => 
+            fetch(`/api/v1/findings/${findingId}/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'Resolved' })
+            })
+        );
+
+        await Promise.all(promises);
+        location.reload(); // Refresh to show updated statuses
+
+    } catch (error) {
+        alert('Failed to resolve some findings. Please try again.');
+    }
+}
+
+// Add notes function
+function addNotes(findingId) {
+    document.getElementById('notesFindingId').value = findingId;
+    document.getElementById('notesText').value = '';
+
+    const modal = new bootstrap.Modal(document.getElementById('notesModal'));
+    modal.show();
+}
+
+// Save notes function
+async function saveNotes() {
+    const findingId = document.getElementById('notesFindingId').value;
+    const notes = document.getElementById('notesText').value;
+
+    if (!notes.trim()) {
+        alert('Please enter some notes.');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/v1/findings/${findingId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                status: 'Acknowledged', // Set to acknowledged when notes added
+                notes: notes 
+            })
+        });
+
+        if (response.ok) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('notesModal'));
+            modal.hide();
+            location.reload(); // Refresh to show updated status
+        } else {
+            throw new Error('Failed to save notes');
+        }
+    } catch (error) {
+        alert('Failed to save notes. Please try again.');
+    }
+}
+
+// Export findings function
+function exportFindings() {
+    // Build URL with current filters
+    const params = new URLSearchParams();
+    {% if current_filters.status %}params.append('status', '{{ current_filters.status }}');{% endif %}
+    {% if current_filters.confidence %}params.append('confidence', '{{ current_filters.confidence }}');{% endif %}
+    {% if current_filters.repository %}params.append('repository', '{{ current_filters.repository }}');{% endif %}
+
+    window.open('/api/v1/findings/export?' + params.toString());
+}
+</script>
+{% endblock %}
